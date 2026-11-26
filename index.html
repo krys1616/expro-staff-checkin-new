@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expro Staff Check in/out</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 1040px; margin: 1.5rem auto; padding: 0 1rem; background: #f8fafc; color: #0f172a; }
+    .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 1.5rem; }
+    .staff-card { max-width: 640px; margin: 2rem auto 1rem auto; }
+    h1, h2 { margin-top: 0; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-top: 0.5rem; }
+    input, select, button { width: 100%; padding: 0.7rem; margin-top: 0.35rem; margin-bottom: 0.9rem; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 0.95rem; box-sizing: border-box; }
+    input[type="file"] { padding: 0.45rem; background: #f8fafc; margin-bottom: 0.4rem; }
+    .grid-roster { display: grid; grid-template-columns: 2fr 1.2fr 1fr 1fr 1fr; gap: 0.75rem; }
+    @media (max-width: 780px) { .grid-roster { grid-template-columns: 1fr; } }
+    .roster-file-box { display: grid; grid-template-columns: 1.4fr 1fr 1.4fr; gap: 0.75rem; align-items: end; background: #f8fafc; padding: 0.9rem; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 1rem; }
+    @media (max-width: 780px) { .roster-file-box { grid-template-columns: 1fr; } }
+    .btn-group { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+    .btn-group button { flex: 1 1 180px; }
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; align-items: center; }
+    .filter-btn { width: auto; padding: 0.45rem 0.9rem; margin: 0; font-size: 0.85rem; background: #e2e8f0; color: #334155; }
+    .filter-btn.active { background: #0f172a; color: white; }
+    button { border: none; font-weight: 600; cursor: pointer; color: white; transition: opacity 0.2s; }
+    button:hover { opacity: 0.92; }
+    .btn-in { background: #16a34a; }
+    .btn-out { background: #dc2626; }
+    .btn-save { background: #0f172a; }
+    .btn-secondary { background: #334155; margin-bottom: 0; }
+    .btn-offload { background: #b45309; margin-bottom: 0; }
+    .btn-cancel { background: #64748b; width: auto; padding: 0.45rem 0.85rem; margin: 0; font-size: 0.82rem; }
+    .btn-export { background: #2563eb; margin-top: 0.75rem; }
+    .btn-exit-admin { background: #475569; width: auto; padding: 0.45rem 0.9rem; font-size: 0.85rem; margin: 0; }
+    .action-btns { display: flex; gap: 0.35rem; }
+    .btn-modify { background: #0284c7; width: auto; padding: 0.25rem 0.6rem; margin: 0; font-size: 0.78rem; }
+    .btn-delete { background: #dc2626; width: auto; padding: 0.25rem 0.6rem; margin: 0; font-size: 0.78rem; }
+    .editing-banner { background: #eff6ff; border: 1px solid #93c5fd; color: #1e3a8a; padding: 0.6rem 0.85rem; border-radius: 8px; margin-bottom: 0.75rem; font-size: 0.85rem; display: none; justify-content: space-between; align-items: center; gap: 0.5rem; }
+    .editing-banner.active { display: flex; }
+    .toast { padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem; font-weight: 600; display: none; text-align: center; }
+    .toast.show { display: block; background: #dbeafe; color: #1e40af; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; overflow-x: auto; display: block; }
+    th, td { text-align: left; padding: 0.55rem; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .badge-in { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 99px; font-size: 0.78rem; }
+    .badge-out { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 99px; font-size: 0.78rem; }
+    .status-ok { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+    .status-late { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+    .status-early { background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 99px; font-size: 0.78rem; font-weight: 600; }
+    .row-alert { background: #fff7ed; }
+    .row-late { background: #fef2f2; }
+    .muted { color: #64748b; font-size: 0.82rem; }
+    .admin-section { display: none; }
+    .admin-section.unlocked { display: block; }
+    .admin-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .footer-toggle { max-width: 640px; margin: 0 auto; text-align: right; }
+    .admin-link { background: none; border: none; color: #94a3b8; font-size: 0.8rem; width: auto; padding: 0.25rem 0.5rem; margin: 0; font-weight: 500; }
+    .admin-link:hover { color: #475569; }
+  </style>
+</head>
+<body>
+
+  <!-- STAFF VIEW (Always Visible) -->
+  <div class="card staff-card">
+    <h1>Expro Staff Check in/out</h1>
+    <div id="toast" class="toast"></div>
+
+    <label for="staffName">Staff Name or ID</label>
+    <input type="text" id="staffName" list="rosterStaffList" placeholder="Enter staff name or ID" />
+    <datalist id="rosterStaffList"></datalist>
+
+    <label for="assignedLocation">Assigned Location</label>
+    <select id="assignedLocation">
+      <option value="Airport">Airport</option>
+      <option value="HK Station">HK Station</option>
+      <option value="Hopewell">Hopewell</option>
+      <option value="Registration">Registration</option>
+      <option value="Ushers">Ushers</option>
+      <option value="Floor Manager">Floor Manager</option>
+      <option value="Meeting room">Meeting room</option>
+      <option value="Opening Ceremony & Welcome Reception">Opening Ceremony & Welcome Reception</option>
+      <option value="Excursion Helpers & See-off">Excursion Helpers & See-off</option>
+      <option value="Bus Assistant (stayed on coach)">Bus Assistant (stayed on coach)</option>
+      <option value="Usher (Hopewell)">Usher (Hopewell)</option>
+      <option value="Lollipop Man (AIA Wheel)">Lollipop Man (AIA Wheel)</option>
+      <option value="Main Entrance">Main Entrance</option>
+      <option value="Registration Desk">Registration Desk</option>
+      <option value="Main Hall / Stage">Main Hall / Stage</option>
+      <option value="Catering & Refreshments">Catering & Refreshments</option>
+      <option value="Backstage / Storage">Backstage / Storage</option>
+    </select>
+
+    <div class="btn-group">
+      <button class="btn-in" onclick="logAction('IN')">Check In</button>
+      <button class="btn-out" onclick="logAction('OUT')">Check Out</button>
+    </div>
+  </div>
+
+  <!-- Discreet Admin Unlock Button -->
+  <div id="staffFooter" class="footer-toggle">
+    <button class="admin-link" onclick="promptAdminUnlock()">Admin</button>
+  </div>
+
+  <!-- ADMIN MODE (Hidden from Staff Until Unlocked) -->
+  <div id="adminPanel" class="admin-section">
+    <div class="admin-bar">
+      <span class="muted"><strong>Admin Mode Active</strong> — Roster loaded on demand via JSON or Admin form</span>
+      <button class="btn-exit-admin" onclick="lockAdminMode()">Lock Admin Mode (Staff View)</button>
+    </div>
+
+    <div class="card">
+      <h2>Assigned Roster Dates, Times & Punctuality Highlighting</h2>
+      <p class="muted">No hardcoded roster data is embedded in this page. Choose <strong>Upload</strong> to load a JSON roster file, <strong>Offload</strong> to clear the active roster and timestamp records from this browser, or <strong>Export</strong> to save a backup copy.</p>
+
+      <div class="roster-file-box">
+        <div>
+          <label for="rosterFileAction">Roster File Option</label>
+          <select id="rosterFileAction" onchange="handleRosterActionOptionChange()" style="margin-bottom:0.4rem;">
+            <option value="UPLOAD">Upload Roster File (.json)</option>
+            <option value="OFFLOAD">Offload Active Roster & Clear Timestamps</option>
+            <option value="EXPORT">Export Active Roster (.json)</option>
+          </select>
+          <div id="uploadControlGroup">
+            <label for="rosterJsonFile" style="margin-top:0.25rem;">Select Roster JSON File</label>
+            <input type="file" id="rosterJsonFile" accept=".json,application/json" onchange="importRosterJson(event)" />
+          </div>
+        </div>
+        <div>
+          <button type="button" id="runRosterOptionBtn" class="btn-secondary" onclick="executeRosterFileOption()">Upload / Apply Option</button>
+        </div>
+        <div>
+          <button type="button" class="btn-offload" onclick="offloadRoster()">Offload Roster Now</button>
+        </div>
+      </div>
+
+      <div class="filter-bar">
+        <label for="scheduleDateSelect" style="margin:0; font-size:0.85rem;">Schedule Date:</label>
+        <select id="scheduleDateSelect" onchange="renderAll()" style="width:auto; margin:0; padding:0.4rem 0.7rem; font-size:0.85rem;">
+          <option value="DEFAULT">Default / Primary Roster Date</option>
+          <option value="2026-11-28">Sat, 28 Nov 2026</option>
+          <option value="2026-11-29">Sun, 29 Nov 2026</option>
+          <option value="2026-11-30">Mon, 30 Nov 2026</option>
+          <option value="2026-12-01">Tue, 1 Dec 2026</option>
+          <option value="2026-12-02">Wed, 2 Dec 2026</option>
+        </select>
+        <button id="filterAllBtn" class="filter-btn active" onclick="setPunctualityFilter('ALL')">All Staff</button>
+        <button id="filterExceptionsBtn" class="filter-btn" onclick="setPunctualityFilter('EXCEPTIONS')">Late / Early Only</button>
+      </div>
+
+      <div id="editingBanner" class="editing-banner">
+        <span id="editingBannerText">Modifying roster entry...</span>
+        <button type="button" class="btn-cancel" onclick="cancelEditRoster()">Cancel</button>
+      </div>
+
+      <div class="grid-roster">
+        <div>
+          <label for="rosterStaff">Staff Name or ID</label>
+          <input type="text" id="rosterStaff" placeholder="e.g., Alex Smith or S-101" />
+        </div>
+        <div>
+          <label for="rosterDate">Roster Date</label>
+          <input type="date" id="rosterDate" />
+        </div>
+        <div>
+          <label for="rosterStart">Roster In (Start)</label>
+          <input type="time" id="rosterStart" value="09:00" />
+        </div>
+        <div>
+          <label for="rosterEnd">Roster Out (End)</label>
+          <input type="time" id="rosterEnd" value="17:00" />
+        </div>
+        <div>
+          <label for="hourlyRate">Hourly Rate</label>
+          <input type="number" id="hourlyRate" step="0.01" min="0" placeholder="80.00" />
+        </div>
+      </div>
+      <button id="saveRosterBtn" class="btn-save" onclick="saveRosterRule()">Save Roster Date, Time & Rate</button>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th>Zone / Role</th>
+            <th>Roster Date</th>
+            <th>Roster Time</th>
+            <th>Punctuality Highlight</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="validationBody"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Timestamp Log</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Staff</th>
+            <th>Assigned Location</th>
+            <th>Action</th>
+            <th>Date & Time</th>
+            <th>Shift Length</th>
+            <th>Roster Date</th>
+            <th>Roster Time</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+      <button class="btn-export" onclick="exportExcel()">Download Excel Workbook (.xlsx)</button>
+    </div>
+  </div>
+
+  <script>
+    const ADMIN_PIN = '1234'; // Change this PIN before publishing
+    const GRACE_MINUTES = 5;
+    let punctualityFilter = 'ALL';
+    let editingRosterKey = null;
+
+    const INITIAL_ROSTER = {};
+
+    const storedRoster = JSON.parse(localStorage.getItem('staffRosterMapV2') || 'null');
+    let rosterMap = storedRoster && typeof storedRoster === 'object' && !Array.isArray(storedRoster)
+      ? { ...INITIAL_ROSTER, ...storedRoster }
+      : { ...INITIAL_ROSTER };
+    localStorage.setItem('staffRosterMapV2', JSON.stringify(rosterMap));
+
+    let logs = JSON.parse(localStorage.getItem('staffCheckLogsV2') || '[]');
+
+    function toLocalISODate(dateObj) {
+      const y = dateObj.getFullYear();
+      const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(dateObj.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function populateStaffDatalist() {
+      const dl = document.getElementById('rosterStaffList');
+      if (!dl) return;
+      const names = Object.values(rosterMap)
+        .map(r => r.displayName)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      dl.innerHTML = names.map(n => `<option value="${n.replace(/"/g, '"')}"></option>`).join('');
+    }
+
+    function unlockAdminPanel() {
+      document.getElementById('adminPanel').classList.add('unlocked');
+      document.getElementById('staffFooter').style.display = 'none';
+      renderAll();
+    }
+
+    function lockAdminMode() {
+      document.getElementById('adminPanel').classList.remove('unlocked');
+      document.getElementById('staffFooter').style.display = 'block';
+      if (window.location.hash === '#admin') {
+        history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+
+    function promptAdminUnlock() {
+      const entered = prompt('Enter Admin PIN:');
+      if (entered === ADMIN_PIN) {
+        unlockAdminPanel();
+      } else if (entered !== null) {
+        alert('Incorrect PIN.');
+      }
+    }
+
+    function setPunctualityFilter(mode) {
+      punctualityFilter = mode;
+      document.getElementById('filterAllBtn').className = 'filter-btn' + (mode === 'ALL' ? ' active' : '');
+      document.getElementById('filterExceptionsBtn').className = 'filter-btn' + (mode === 'EXCEPTIONS' ? ' active' : '');
+      renderAll();
+    }
+
+    function parseHHMMToMinutes(hhmm) {
+      if (!hhmm || !hhmm.includes(':')) return null;
+      const [h, m] = hhmm.split(':').map(Number);
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    }
+
+    function computeRosterHours(startStr, endStr) {
+      const startMin = parseHHMMToMinutes(startStr);
+      const endMin = parseHHMMToMinutes(endStr);
+      if (startMin == null || endMin == null) return 0;
+      let diffMin = endMin - startMin;
+      if (diffMin <= 0) diffMin += 24 * 60;
+      return Number((diffMin / 60).toFixed(2));
+    }
+
+    function getActiveShiftForRule(rule, selectedDate) {
+      if (!rule) return null;
+      if (selectedDate && selectedDate !== 'DEFAULT') {
+        if (rule.shifts && rule.shifts[selectedDate]) {
+          const s = rule.shifts[selectedDate];
+          return {
+            date: selectedDate,
+            start: s.in || rule.rosterStart,
+            end: s.out || rule.rosterEnd,
+            hours: s.hours != null ? Number(s.hours) : computeRosterHours(s.in || rule.rosterStart, s.out || rule.rosterEnd)
+          };
+        }
+        if (rule.rosterDate === selectedDate) {
+          return {
+            date: rule.rosterDate,
+            start: rule.rosterStart,
+            end: rule.rosterEnd,
+            hours: computeRosterHours(rule.rosterStart, rule.rosterEnd)
+          };
+        }
+        return null;
+      }
+      const shiftKeys = rule.shifts ? Object.keys(rule.shifts).sort() : [];
+      const primaryDate = rule.rosterDate || shiftKeys[0] || '';
+      return {
+        date: primaryDate,
+        start: rule.rosterStart,
+        end: rule.rosterEnd,
+        hours: computeRosterHours(rule.rosterStart, rule.rosterEnd)
+      };
+    }
+
+    function getShiftForLogEntry(rule, logEntry) {
+      if (!rule) return null;
+      const logIsoDate = logEntry?.timestamp ? toLocalISODate(new Date(logEntry.timestamp)) : '';
+      if (logIsoDate && rule.shifts && rule.shifts[logIsoDate]) {
+        const s = rule.shifts[logIsoDate];
+        return {
+          date: logIsoDate,
+          start: s.in || rule.rosterStart,
+          end: s.out || rule.rosterEnd,
+          hours: s.hours != null ? Number(s.hours) : computeRosterHours(s.in || rule.rosterStart, s.out || rule.rosterEnd)
+        };
+      }
+      const shiftKeys = rule.shifts ? Object.keys(rule.shifts).sort() : [];
+      const fallbackDate = rule.rosterDate || shiftKeys[0] || '';
+      return {
+        date: fallbackDate,
+        start: rule.rosterStart,
+        end: rule.rosterEnd,
+        hours: computeRosterHours(rule.rosterStart, rule.rosterEnd)
+      };
+    }
+
+    function isLogDateTimeMismatched(entry, rule) {
+      if (!rule || !entry?.timestamp) return false;
+      const d = new Date(entry.timestamp);
+      const logIsoDate = toLocalISODate(d);
+      const shiftForDate = rule.shifts && rule.shifts[logIsoDate] ? rule.shifts[logIsoDate] : null;
+      const expectedDate = shiftForDate ? logIsoDate : (rule.rosterDate || '');
+
+      if (expectedDate && logIsoDate !== expectedDate) {
+        return true;
+      }
+
+      const startStr = shiftForDate?.in || rule.rosterStart;
+      const endStr = shiftForDate?.out || rule.rosterEnd;
+      const startMin = parseHHMMToMinutes(startStr);
+      const endMin = parseHHMMToMinutes(endStr);
+      if (startMin != null && endMin != null) {
+        const isOvernight = endMin <= startMin;
+        let actualMin = d.getHours() * 60 + d.getMinutes();
+        if (isOvernight && actualMin < 12 * 60 && startMin >= 12 * 60) {
+          actualMin += 24 * 60;
+        }
+        const effectiveEndMin = isOvernight ? endMin + 24 * 60 : endMin;
+        if (actualMin < startMin - 180 || actualMin > effectiveEndMin + 180) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function resetMismatchedLogs(notify = true) {
+      if (!Array.isArray(logs) || logs.length === 0 || Object.keys(rosterMap).length === 0) {
+        return false;
+      }
+      const kept = [];
+      let removedCount = 0;
+      for (const entry of logs) {
+        const key = (entry.name || '').trim().toLowerCase();
+        const rule = rosterMap[key];
+        if (rule && isLogDateTimeMismatched(entry, rule)) {
+          removedCount += 1;
+        } else {
+          kept.push(entry);
+        }
+      }
+      if (removedCount > 0) {
+        logs = kept;
+        localStorage.setItem('staffCheckLogsV2', JSON.stringify(logs));
+        if (notify) {
+          showToast(`Reset ${removedCount} log entry(ies) due to date/time mismatch with roster`);
+        }
+        return true;
+      }
+      return false;
+    }
+
+    function formatDuration(ms) {
+      if (ms == null || ms < 0) return '-';
+      const totalMinutes = Math.round(ms / 60000);
+      const hours = Math.floor(totalMinutes / 60);
+      const mins = totalMinutes % 60;
+      return `${hours}h ${String(mins).padStart(2, '0')}m`;
+    }
+
+    function formatDecimalHours(ms) {
+      return Number(((ms || 0) / 3600000).toFixed(2));
+    }
+
+    function showToast(message) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+    }
+
+    function handleRosterActionOptionChange() {
+      const action = document.getElementById('rosterFileAction')?.value || 'UPLOAD';
+      const uploadGroup = document.getElementById('uploadControlGroup');
+      const runBtn = document.getElementById('runRosterOptionBtn');
+      if (uploadGroup) {
+        uploadGroup.style.display = action === 'UPLOAD' ? 'block' : 'none';
+      }
+      if (runBtn) {
+        if (action === 'UPLOAD') runBtn.textContent = 'Choose JSON File to Upload';
+        else if (action === 'OFFLOAD') runBtn.textContent = 'Offload Roster & Timestamps';
+        else runBtn.textContent = 'Export Roster (JSON)';
+      }
+    }
+
+    function executeRosterFileOption() {
+      const action = document.getElementById('rosterFileAction')?.value || 'UPLOAD';
+      if (action === 'UPLOAD') {
+        document.getElementById('rosterJsonFile')?.click();
+      } else if (action === 'OFFLOAD') {
+        offloadRoster();
+      } else if (action === 'EXPORT') {
+        exportRosterJson();
+      }
+    }
+
+    function offloadRoster() {
+      if (!confirm('Offload (remove) the active roster AND discard all timestamp records from this browser? Make sure you have exported your Excel/JSON files if needed.')) {
+        return;
+      }
+      rosterMap = {};
+      logs = [];
+      editingRosterKey = null;
+      document.getElementById('editingBanner').classList.remove('active');
+      document.getElementById('saveRosterBtn').textContent = 'Save Roster Date, Time & Rate';
+      localStorage.setItem('staffRosterMapV2', JSON.stringify(rosterMap));
+      localStorage.setItem('staffCheckLogsV2', JSON.stringify(logs));
+      populateStaffDatalist();
+      renderAll();
+      showToast('Offloaded active roster and discarded all timestamp records');
+    }
+
+    function importRosterJson(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+            alert('Invalid roster JSON format. Expected a JSON object keyed by lowercase staff name.');
+            return;
+          }
+
+          const normalizedMap = {};
+          for (const [rawKey, val] of Object.entries(parsed)) {
+            if (!val || typeof val !== 'object') continue;
+            const key = String(rawKey).trim().toLowerCase();
+            if (!key) continue;
+            const shiftsObj = val.shifts && typeof val.shifts === 'object' ? val.shifts : {};
+            const sortedDates = Object.keys(shiftsObj).sort();
+            normalizedMap[key] = {
+              ...val,
+              displayName: val.displayName || String(rawKey).trim(),
+              rosterDate: val.rosterDate || sortedDates[0] || '',
+              rosterStart: val.rosterStart || '09:00',
+              rosterEnd: val.rosterEnd || '17:00',
+              hourlyRate: Number(val.hourlyRate) || 0,
+              shifts: shiftsObj
+            };
+          }
+
+          rosterMap = normalizedMap;
+          editingRosterKey = null;
+          document.getElementById('editingBanner').classList.remove('active');
+          document.getElementById('saveRosterBtn').textContent = 'Save Roster Date, Time & Rate';
+          localStorage.setItem('staffRosterMapV2', JSON.stringify(rosterMap));
+          populateStaffDatalist();
+          resetMismatchedLogs(true);
+          renderAll();
+          showToast(`Uploaded ${Object.keys(rosterMap).length} staff entries from ${file.name}`);
+        } catch (err) {
+          alert('Could not read JSON file: ' + err.message);
+        } finally {
+          event.target.value = '';
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function exportRosterJson() {
+      const jsonText = JSON.stringify(rosterMap, null, 2);
+      const blob = new Blob([jsonText], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'roster-private.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast(`Exported ${Object.keys(rosterMap).length} roster entries to JSON`);
+    }
+
+    function modifyRosterEntry(key) {
+      const selectedDate = document.getElementById('scheduleDateSelect')?.value || 'DEFAULT';
+      const rule = rosterMap[key];
+      const activeShift = getActiveShiftForRule(rule, selectedDate);
+      const displayName = rule?.displayName || key;
+
+      editingRosterKey = key;
+      document.getElementById('rosterStaff').value = displayName;
+      document.getElementById('rosterDate').value = activeShift?.date || rule?.rosterDate || (selectedDate !== 'DEFAULT' ? selectedDate : '');
+      document.getElementById('rosterStart').value = activeShift?.start || rule?.rosterStart || '09:00';
+      document.getElementById('rosterEnd').value = activeShift?.end || rule?.rosterEnd || '17:00';
+      document.getElementById('hourlyRate').value = rule?.hourlyRate ?? '';
+
+      const dateLabel = activeShift?.date ? ` (${activeShift.date})` : '';
+      document.getElementById('editingBannerText').textContent = `Modifying "${displayName}"${dateLabel} — update date/times/rate below and click Update.`;
+      document.getElementById('editingBanner').classList.add('active');
+      document.getElementById('saveRosterBtn').textContent = 'Update Roster Date, Time & Rate';
+      document.getElementById('rosterDate').focus();
+    }
+
+    function cancelEditRoster() {
+      editingRosterKey = null;
+      document.getElementById('rosterStaff').value = '';
+      document.getElementById('rosterDate').value = '';
+      document.getElementById('rosterStart').value = '09:00';
+      document.getElementById('rosterEnd').value = '17:00';
+      document.getElementById('hourlyRate').value = '';
+      document.getElementById('editingBanner').classList.remove('active');
+      document.getElementById('saveRosterBtn').textContent = 'Save Roster Date, Time & Rate';
+    }
+
+    function saveRosterRule() {
+      const nameInput = document.getElementById('rosterStaff');
+      const dateInput = document.getElementById('rosterDate');
+      const startInput = document.getElementById('rosterStart');
+      const endInput = document.getElementById('rosterEnd');
+      const rateInput = document.getElementById('hourlyRate');
+      const selectedDate = document.getElementById('scheduleDateSelect')?.value || 'DEFAULT';
+
+      const name = nameInput.value.trim();
+      const chosenDate = dateInput.value || (selectedDate !== 'DEFAULT' ? selectedDate : '');
+      const rosterStart = startInput.value;
+      const rosterEnd = endInput.value;
+      const hourlyRate = parseFloat(rateInput.value);
+
+      if (!name || !rosterStart || !rosterEnd) {
+        alert('Please enter a staff name/ID, roster start time, and roster end time.');
+        return;
+      }
+
+      const newKey = name.toLowerCase();
+      const existing = (editingRosterKey && rosterMap[editingRosterKey]) || rosterMap[newKey] || {};
+      const updatedShifts = { ...(existing.shifts || {}) };
+      const updatedHours = computeRosterHours(rosterStart, rosterEnd);
+
+      if (chosenDate) {
+        updatedShifts[chosenDate] = {
+          ...(updatedShifts[chosenDate] || {}),
+          in: rosterStart,
+          out: rosterEnd,
+          hours: updatedHours
+        };
+      }
+
+      if (editingRosterKey && editingRosterKey !== newKey && rosterMap[editingRosterKey]) {
+        delete rosterMap[editingRosterKey];
+      }
+
+      rosterMap[newKey] = {
+        ...existing,
+        displayName: name,
+        rosterDate: chosenDate || existing.rosterDate || '',
+        rosterStart: (selectedDate === 'DEFAULT' || !existing.rosterStart) ? rosterStart : existing.rosterStart,
+        rosterEnd: (selectedDate === 'DEFAULT' || !existing.rosterEnd) ? rosterEnd : existing.rosterEnd,
+        hourlyRate: Number.isNaN(hourlyRate) ? (existing.hourlyRate || 0) : Math.max(0, hourlyRate),
+        shifts: updatedShifts
+      };
+
+      localStorage.setItem('staffRosterMapV2', JSON.stringify(rosterMap));
+      populateStaffDatalist();
+      cancelEditRoster();
+      resetMismatchedLogs(true);
+      renderAll();
+      showToast(`Saved roster ${chosenDate ? chosenDate + ' ' : ''}${rosterStart}–${rosterEnd} for ${name}`);
+    }
+
+    function deleteRosterEntry(key) {
+      const entry = rosterMap[key];
+      const label = entry?.displayName || key;
+      if (!confirm(`Remove "${label}" and all of their timestamp records?`)) return;
+
+      delete rosterMap[key];
+      if (editingRosterKey === key) {
+        cancelEditRoster();
+      }
+
+      logs = logs.filter(item => (item.name || '').trim().toLowerCase() !== key);
+
+      localStorage.setItem('staffRosterMapV2', JSON.stringify(rosterMap));
+      localStorage.setItem('staffCheckLogsV2', JSON.stringify(logs));
+      populateStaffDatalist();
+      renderAll();
+      showToast(`Removed ${label} and their timestamp records`);
+    }
+
+    function evaluatePunctuality(activeShift, firstInEntry, lastOutEntry) {
+      if (!activeShift || !activeShift.start || !activeShift.end) {
+        return {
+          badgeClass: 'status-early',
+          rowClass: 'row-alert',
+          label: 'No Shift on Date',
+          flag: 'NO_ROSTER'
+        };
+      }
+      if (!firstInEntry && !lastOutEntry) {
+        return {
+          badgeClass: 'status-early',
+          rowClass: 'row-alert',
+          label: 'Not Checked In',
+          flag: 'MISSING_ATTENDANCE'
+        };
+      }
+
+      const startMin = parseHHMMToMinutes(activeShift.start);
+      const endMin = parseHHMMToMinutes(activeShift.end);
+      const isOvernight = endMin <= startMin;
+      const issues = [];
+      let hasLateIn = false;
+      let hasException = false;
+
+      if (firstInEntry) {
+        const dIn = new Date(firstInEntry.timestamp);
+        const actualInDate = toLocalISODate(dIn);
+        if (activeShift.date && actualInDate !== activeShift.date) {
+          hasException = true;
+          issues.push(`Date Mismatch (${actualInDate})`);
+        } else {
+          let actualInMin = dIn.getHours() * 60 + dIn.getMinutes();
+          if (isOvernight && actualInMin < 12 * 60 && startMin >= 12 * 60) {
+            actualInMin += 24 * 60;
+          }
+          const diffIn = actualInMin - startMin;
+          if (diffIn > GRACE_MINUTES) {
+            hasLateIn = true;
+            hasException = true;
+            issues.push(`Late In (+${Math.round(diffIn)}m)`);
+          } else if (diffIn < -GRACE_MINUTES) {
+            hasException = true;
+            issues.push(`Early In (${Math.round(diffIn)}m)`);
+          }
+        }
+      } else {
+        hasLateIn = true;
+        hasException = true;
+        issues.push('Missing Check-In');
+      }
+
+      if (lastOutEntry) {
+        const dOut = new Date(lastOutEntry.timestamp);
+        let actualOutMin = dOut.getHours() * 60 + dOut.getMinutes();
+        let effectiveEndMin = endMin;
+        if (isOvernight) {
+          effectiveEndMin += 24 * 60;
+          if (actualOutMin < startMin) actualOutMin += 24 * 60;
+        }
+        const diffOut = actualOutMin - effectiveEndMin;
+        if (diffOut < -GRACE_MINUTES) {
+          hasException = true;
+          issues.push(`Early Out (${Math.round(diffOut)}m)`);
+        } else if (diffOut > GRACE_MINUTES) {
+          hasException = true;
+          issues.push(`Late Out (+${Math.round(diffOut)}m)`);
+        }
+      } else {
+        hasException = true;
+        issues.push('Missing Check-Out');
+      }
+
+      if (!hasException) {
+        return {
+          badgeClass: 'status-ok',
+          rowClass: '',
+          label: 'On Time',
+          flag: 'ON_TIME'
+        };
+      }
+
+      return {
+        badgeClass: hasLateIn ? 'status-late' : 'status-early',
+        rowClass: hasLateIn ? 'row-late' : 'row-alert',
+        label: issues.join(' • '),
+        flag: 'EXCEPTION'
+      };
+    }
+
+    function computeMetrics(rawLogs) {
+      const selectedDate = document.getElementById('scheduleDateSelect')?.value || 'DEFAULT';
+      const sorted = rawLogs
+        .map((entry, idx) => ({ ...entry, _idx: idx }))
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+      const openInByStaff = new Map();
+      const shiftMsByLogIdx = new Map();
+      const staffLogStats = new Map();
+
+      function ensureStaffStats(name) {
+        const key = name.trim().toLowerCase();
+        if (!staffLogStats.has(key)) {
+          staffLogStats.set(key, {
+            displayName: name,
+            actualMs: 0,
+            firstIn: null,
+            lastOut: null
+          });
+        }
+        return staffLogStats.get(key);
+      }
+
+      for (const entry of sorted) {
+        const key = (entry.name || '').trim().toLowerCase();
+        const st = ensureStaffStats(entry.name);
+        const entryTime = new Date(entry.timestamp).getTime();
+
+        if (entry.action === 'IN') {
+          if (!st.firstIn) st.firstIn = entry;
+          if (!openInByStaff.has(key)) {
+            openInByStaff.set(key, entry);
+          }
+        } else if (entry.action === 'OUT') {
+          st.lastOut = entry;
+          const matchedIn = openInByStaff.get(key);
+          if (matchedIn) {
+            const durationMs = Math.max(0, entryTime - new Date(matchedIn.timestamp).getTime());
+            shiftMsByLogIdx.set(entry._idx, durationMs);
+            st.actualMs += durationMs;
+            openInByStaff.delete(key);
+          }
+        }
+      }
+
+      const enrichedLogs = rawLogs.map((entry, idx) => ({
+        ...entry,
+        shiftMs: shiftMsByLogIdx.get(idx) ?? null
+      }));
+
+      const allKeys = new Set([
+        ...Object.keys(rosterMap),
+        ...Array.from(staffLogStats.keys())
+      ]);
+
+      const summaryRows = Array.from(allKeys).map(key => {
+        const rule = rosterMap[key];
+        const st = staffLogStats.get(key);
+        const activeShift = getActiveShiftForRule(rule, selectedDate);
+        const displayName = rule?.displayName || st?.displayName || key;
+        const zoneRole = [rule?.zone, rule?.position].filter(Boolean).join(' • ') || '-';
+        const rosterDate = activeShift?.date || (selectedDate !== 'DEFAULT' ? selectedDate : (rule?.rosterDate || ''));
+        const rosterStart = activeShift ? activeShift.start : '';
+        const rosterEnd = activeShift ? activeShift.end : '';
+        const rosterTime = activeShift ? `${activeShift.start} – ${activeShift.end}` : '-';
+        const rosterHours = activeShift ? activeShift.hours : 0;
+        const hourlyRate = rule ? rule.hourlyRate : 0;
+        const actualHours = formatDecimalHours(st?.actualMs || 0);
+        const varianceHours = Number((actualHours - rosterHours).toFixed(2));
+        const estimatedPay = Number((actualHours * hourlyRate).toFixed(2));
+        const punctuality = evaluatePunctuality(activeShift, st?.firstIn, st?.lastOut);
+
+        return {
+          key,
+          isInRoster: Boolean(rule),
+          displayName,
+          zoneRole,
+          rosterDate,
+          rosterStart,
+          rosterEnd,
+          rosterTime,
+          rosterHours,
+          actualHours,
+          varianceHours,
+          punctualityLabel: punctuality.label,
+          punctualityFlag: punctuality.flag,
+          badgeClass: punctuality.badgeClass,
+          rowClass: punctuality.rowClass,
+          hourlyRate,
+          estimatedPay
+        };
+      });
+
+      return { enrichedLogs, summaryRows };
+    }
+
+    function logAction(action) {
+      const nameInput = document.getElementById('staffName');
+      const locInput = document.getElementById('assignedLocation');
+      const name = nameInput.value.trim();
+
+      if (!name) {
+        alert('Please enter your name or Staff ID.');
+        return;
+      }
+
+      const now = new Date();
+      const newEntry = {
+        name,
+        location: locInput.value,
+        action,
+        date: now.toLocaleDateString(),
+        time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        timestamp: now.toISOString()
+      };
+
+      const rule = rosterMap[name.toLowerCase()];
+      if (rule && isLogDateTimeMismatched(newEntry, rule)) {
+        nameInput.value = '';
+        renderAll();
+        showToast(`Mismatched date/time for ${name} — entry reset`);
+        return;
+      }
+
+      logs.push(newEntry);
+      localStorage.setItem('staffCheckLogsV2', JSON.stringify(logs));
+      nameInput.value = '';
+      renderAll();
+      showToast(`${name} checked ${action} at ${locInput.value}`);
+    }
+
+    function renderAll() {
+      resetMismatchedLogs(true);
+      const { enrichedLogs, summaryRows } = computeMetrics(logs);
+
+      // Hide rows where there is no shift on the selected day ('NO_ROSTER')
+      const scheduledRows = summaryRows.filter(r => r.punctualityFlag !== 'NO_ROSTER');
+
+      const visibleRows = punctualityFilter === 'EXCEPTIONS'
+        ? scheduledRows.filter(r => r.punctualityFlag !== 'ON_TIME')
+        : scheduledRows;
+
+      const valBody = document.getElementById('validationBody');
+      valBody.innerHTML = visibleRows.length
+        ? visibleRows.map(r => {
+            const safeKey = r.key.replace(/'/g, "\\'");
+            return `
+            <tr class="${r.rowClass}">
+              <td><strong>${r.displayName}</strong></td>
+              <td class="muted">${r.zoneRole}</td>
+              <td>${r.rosterDate || '-'}</td>
+              <td>${r.rosterTime}</td>
+              <td><span class="${r.badgeClass}">${r.punctualityLabel}</span></td>
+              <td>
+                <div class="action-btns">
+                  <button type="button" class="btn-modify" onclick="modifyRosterEntry('${safeKey}')">Modify</button>
+                  ${
+                    r.isInRoster
+                      ? `<button type="button" class="btn-delete" onclick="deleteRosterEntry('${safeKey}')">Delete</button>`
+                      : ''
+                  }
+                </div>
+              </td>
+            </tr>
+          `;
+          }).join('')
+        : `<tr><td colspan="6" class="muted">${
+            punctualityFilter === 'EXCEPTIONS'
+              ? 'No late or early staff exceptions to display.'
+              : 'No shifts scheduled on this date. Upload a roster JSON file or add a roster entry to begin.'
+          }</td></tr>`;
+
+      const logBody = document.getElementById('logBody');
+      logBody.innerHTML = enrichedLogs.length
+        ? enrichedLogs.slice().reverse().map(entry => {
+            const key = (entry.name || '').trim().toLowerCase();
+            const rule = rosterMap[key];
+            const shiftInfo = getShiftForLogEntry(rule, entry);
+            return `
+            <tr>
+              <td><strong>${entry.name}</strong></td>
+              <td>${entry.location}</td>
+              <td><span class="${entry.action === 'IN' ? 'badge-in' : 'badge-out'}">${entry.action}</span></td>
+              <td>${entry.date} ${entry.time}</td>
+              <td>${entry.action === 'OUT' ? formatDuration(entry.shiftMs) : '<span class="muted">-</span>'}</td>
+              <td>${shiftInfo?.date || '<span class="muted">-</span>'}</td>
+              <td>${shiftInfo ? `${shiftInfo.start} – ${shiftInfo.end}` : '<span class="muted">-</span>'}</td>
+            </tr>
+          `;
+          }).join('')
+        : `<tr><td colspan="7" class="muted">No timestamp records.</td></tr>`;
+    }
+
+    function exportExcel() {
+      const { enrichedLogs, summaryRows } = computeMetrics(logs);
+      const wb = XLSX.utils.book_new();
+
+      const summarySheetData = summaryRows.map(r => ({
+        'Staff Name / ID': r.displayName,
+        'Zone / Role': r.zoneRole,
+        'Roster Date': r.rosterDate,
+        'Roster Start Time': r.rosterStart,
+        'Roster End Time': r.rosterEnd,
+        'Roster Hours': r.rosterHours,
+        'Actual Worked Hours': r.actualHours,
+        'Variance (Actual - Roster)': r.varianceHours,
+        'Punctuality Flag': r.punctualityFlag,
+        'Early / Late Details': r.punctualityLabel,
+        'Hourly Rate': r.hourlyRate,
+        'Estimated Salary': r.estimatedPay
+      }));
+
+      const logSheetData = enrichedLogs.map(l => {
+        const key = (l.name || '').trim().toLowerCase();
+        const rule = rosterMap[key];
+        const shiftInfo = getShiftForLogEntry(rule, l);
+        const logIsoDate = l.timestamp ? toLocalISODate(new Date(l.timestamp)) : '';
+        let punctualityStatus = '';
+        if (l.action === 'IN' && shiftInfo && shiftInfo.start) {
+          if (shiftInfo.date && logIsoDate && shiftInfo.date !== logIsoDate) {
+            punctualityStatus = 'Different Date';
+          } else {
+            const dIn = new Date(l.timestamp);
+            const actualInMin = dIn.getHours() * 60 + dIn.getMinutes();
+            const startMin = parseHHMMToMinutes(shiftInfo.start);
+            if (startMin != null) {
+              const diffMin = actualInMin - startMin;
+              punctualityStatus = diffMin > GRACE_MINUTES ? 'Late' : (diffMin < -GRACE_MINUTES ? 'Early' : 'On Time');
+            }
+          }
+        }
+        return {
+          'Staff Name / ID': l.name,
+          'Assigned Location': l.location,
+          'Action': l.action,
+          'Check Date (YYYY-MM-DD)': logIsoDate,
+          'Date': l.date,
+          'Time': l.time,
+          'ISO Timestamp': l.timestamp,
+          'Shift Duration': l.action === 'OUT' && l.shiftMs != null ? formatDuration(l.shiftMs) : '',
+          'Shift Hours (Decimal)': l.action === 'OUT' && l.shiftMs != null ? formatDecimalHours(l.shiftMs) : '',
+          'Roster Date': shiftInfo ? shiftInfo.date : '',
+          'Roster Start Time': shiftInfo ? shiftInfo.start : '',
+          'Roster End Time': shiftInfo ? shiftInfo.end : '',
+          'Roster Hours': shiftInfo ? shiftInfo.hours : '',
+          'Check-In Status': punctualityStatus
+        };
+      });
+
+      const wsSummary = XLSX.utils.json_to_sheet(summarySheetData);
+      const wsLogs = XLSX.utils.json_to_sheet(logSheetData);
+
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Roster Validation & Pay');
+      XLSX.utils.book_append_sheet(wb, wsLogs, 'Timestamps Log');
+
+      XLSX.writeFile(wb, 'expro-staff-roster-validation.xlsx');
+    }
+
+    handleRosterActionOptionChange();
+    populateStaffDatalist();
+    renderAll();
+  </script>
+</body>
+</html>
